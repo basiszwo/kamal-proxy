@@ -11,6 +11,7 @@ import (
 	"os"
 	"time"
 
+	proxyproto "github.com/pires/go-proxyproto"
 	"github.com/quic-go/quic-go/http3"
 	"golang.org/x/crypto/acme"
 
@@ -61,7 +62,7 @@ func (s *Server) Start() error {
 		return err
 	}
 
-	slog.Info("Server started", "http", s.HttpPort(), "https", s.HttpsPort())
+	slog.Info("Server started", "http", s.HttpPort(), "https", s.HttpsPort(), "proxy_protocol", s.config.ProxyProtocolEnabled)
 	return nil
 }
 
@@ -140,7 +141,7 @@ func (s *Server) startHTTPServers() error {
 	if err != nil {
 		return err
 	}
-	s.httpListener = httpListener
+	s.httpListener = s.wrapWithProxyProtocol(httpListener)
 	s.httpServer = &http.Server{
 		Handler: handler,
 	}
@@ -149,7 +150,7 @@ func (s *Server) startHTTPServers() error {
 	if err != nil {
 		return err
 	}
-	s.httpsListener = httpsListener
+	s.httpsListener = s.wrapWithProxyProtocol(httpsListener)
 	s.httpsServer = &http.Server{
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if s.config.HTTP3Enabled {
@@ -209,6 +210,16 @@ func (s *Server) startCommandHandler() error {
 	_ = os.Remove(s.config.SocketPath())
 
 	return s.commandHandler.Start(s.config.SocketPath())
+}
+
+func (s *Server) wrapWithProxyProtocol(listener net.Listener) net.Listener {
+	if !s.config.ProxyProtocolEnabled {
+		return listener
+	}
+	return &proxyproto.Listener{
+		Listener:          listener,
+		ReadHeaderTimeout: 10 * time.Second,
+	}
 }
 
 func (s *Server) buildHandler() http.Handler {

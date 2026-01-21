@@ -143,6 +143,23 @@ your certificate file and the corresponding private key:
     kamal-proxy deploy service1 --target web-1:3000 --host app1.example.com --tls --tls-certificate-path cert.pem --tls-private-key-path key.pem
 
 
+### PROXY Protocol
+
+When running Kamal Proxy behind a load balancer that uses SSL passthrough, the
+load balancer cannot inject `X-Forwarded-For` headers because the traffic is
+encrypted. In this case, you can enable PROXY protocol support to preserve the
+original client IP address:
+
+    kamal-proxy run --proxy-protocol
+
+The load balancer sends client connection information at the TCP level before
+the TLS handshake, allowing Kamal Proxy to see the real client IP. Both PROXY
+protocol v1 and v2 are supported.
+
+Note: Only enable PROXY protocol when running behind a trusted load balancer.
+If exposed directly to the internet, clients could spoof their source IP.
+
+
 ## Specifying `run` options with environment variables
 
 In some environments, like when running a Docker container, it can be convenient
